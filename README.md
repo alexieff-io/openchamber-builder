@@ -26,16 +26,6 @@ You do not need to own or fork the upstream repo — the workflow checks out the
    - **Make the package public** (easiest): on GitHub go to your profile → **Packages** → `openchamber` → **Package settings** → Danger Zone → Change visibility → Public. No credentials needed anywhere.
    - **Keep it private**: create a classic PAT with the `read:packages` scope, then add `ghcr.io` as a registry in Dockhand (Registries → username = your GitHub username, password = the PAT).
 
-## Deploy in Dockhand
-
-Create a new stack in Dockhand and paste in `dockhand-stack.yml` (replace `YOUR_GITHUB_USER`, lowercase). Set the required `OPENCHAMBER_UI_PASSWORD` environment variable on the stack before deploying:
-
-```bash
-openssl rand -base64 24
-```
-
-Then deploy. The UI comes up on port `3000`.
-
 ## Staying up to date
 
 The workflow runs daily at 06:15 UTC, checks upstream for a new `vX.Y.Z` release tag, and builds/pushes it (tagged both as the version and `latest`) only if it isn't already in your GHCR. To update the running container, use Dockhand's image update / re-pull on the stack — or enable auto-update if you run something like Watchtower.
