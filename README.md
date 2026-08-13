@@ -9,25 +9,6 @@ ghcr.io/YOUR_GITHUB_USER/openchamber:v1.18.2   (every upstream release tag)
 
 You do not need to own or fork the upstream repo — the workflow checks out the public source at its latest release tag and builds it with the upstream `Dockerfile` (amd64).
 
-## One-time setup (~5 minutes)
-
-1. Create a new GitHub repo under your account, e.g. `openchamber-builder` (private is fine — the *image* visibility is separate).
-2. Push the contents of this folder to it (branch `main`):
-
-   ```bash
-   git init && git add -A && git commit -m "OpenChamber GHCR builder"
-   git branch -M main
-   git remote add origin git@github.com:YOUR_GITHUB_USER/openchamber-builder.git
-   git push -u origin main
-   ```
-
-3. The push itself triggers the first build (takes ~5–10 min). Watch it under the repo's **Actions** tab.
-4. After the first build, decide how your Docker host will pull the image — pick one:
-   - **Make the package public** (easiest): on GitHub go to your profile → **Packages** → `openchamber` → **Package settings** → Danger Zone → Change visibility → Public. No credentials needed anywhere.
-   - **Keep it private**: create a classic PAT with the `read:packages` scope, then add `ghcr.io` as a registry in Dockhand (Registries → username = your GitHub username, password = the PAT).
-
-## Staying up to date
-
 The workflow runs daily at 06:15 UTC, checks upstream for a new `vX.Y.Z` release tag, and builds/pushes it (tagged both as the version and `latest`) only if it isn't already in your GHCR. To update the running container, use Dockhand's image update / re-pull on the stack — or enable auto-update if you run something like Watchtower.
 
 Manual controls (Actions tab → *Build OpenChamber image* → Run workflow):
