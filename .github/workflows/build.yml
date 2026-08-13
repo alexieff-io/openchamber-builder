@@ -1,0 +1,99 @@
+name: Build OpenChamber image
+
+on:
+  # Check daily for a new upstream release (06:15 UTC)
+  schedule:
+    - cron: "15 6 * * *"
+  # Manual run: optionally pin a ref (tag/branch/sha) or force a rebuild
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Upstream ref to build (default: latest release tag)"
+        required: false
+        default: ""
+      force:
+        description: "Rebuild even if this version already exists in GHCR"
+        type: boolean
+        default: false
+  # Build once when you first push this repo
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  UPSTREAM: openchamber/openchamber
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve image name (GHCR requires lowercase)
+        id: image
+        run: echo "name=ghcr.io/${OWNER,,}/openchamber" >> "$GITHUB_OUTPUT"
+        env:
+          OWNER: ${{ github.repository_owner }}
+
+      - name: Resolve upstream ref to build
+        id: ref
+        run: |
+          if [ -n "${{ github.event.inputs.ref }}" ]; then
+            REF="${{ github.event.inputs.ref }}"
+          else
+            REF=$(git ls-remote --tags "https://github.com/${UPSTREAM}.git" \
+              | awk -F'refs/tags/' '{print $2}' \
+              | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+              | sort -V | tail -1)
+          fi
+          if [ -z "$REF" ]; then
+            echo "Could not resolve an upstream ref" >&2
+            exit 1
+          fi
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          echo "Building upstream ref: $REF"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip if this version is already published
+        id: exists
+        run: |
+          TAG="${{ steps.ref.outputs.ref }}"
+          if [ "${{ github.event.inputs.force }}" != "true" ] \
+             && docker manifest inspect "${{ steps.image.outputs.name }}:${TAG}" > /dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "${TAG} already exists in GHCR - skipping build"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out upstream source
+        if: steps.exists.outputs.skip == 'false'
+        uses: actions/checkout@v4
+        with:
+          repository: openchamber/openchamber
+          ref: ${{ steps.ref.outputs.ref }}
+
+      - name: Set up Docker Buildx
+        if: steps.exists.outputs.skip == 'false'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        if: steps.exists.outputs.skip == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ steps.ref.outputs.ref }}
+            ${{ steps.image.outputs.name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
